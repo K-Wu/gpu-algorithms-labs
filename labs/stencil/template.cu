@@ -9,33 +9,33 @@ __global__ void kernel(int *A0, int *Anext, int nx, int ny, int nz) {
   __shared__ int shdmem[32*32];
   // INSERT KERNEL CODE HERE
   #define A0(i, j, k) A0[((k)*ny + (j))*nx + (i)]
-  #define Anext(i, j, k) Anext[((k)*(ny-2) + (j))*(nx-2) + (i)]
-  #define shdmem(i, j) shdmem[((j))*nx + (i)]	
-  int xOutIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  int yOutIdx = blockIdx.y * blockDim.y + threadIdx.y;
+  #define Anext(i, j, k) Anext[((k)*(ny) + (j))*(nx) + (i)]
+  #define shdmem(i, j) shdmem[((j))*32 + (i)]	
+  int xOutIdx = blockIdx.x * blockDim.x + threadIdx.x + 1;
+  int yOutIdx = blockIdx.y * blockDim.y + threadIdx.y + 1;
   //int xInIdx = blockIdx.x * blockDim.x + threadIdx.x;
   //int yInIdx = blockIdx.y * blockDim.y + threadIdx.y;
   int currZ;
   int nextZ;
   int lastZ;
-  if (xOutIdx<nx-2 && yOutIdx<ny-2){
-    lastZ = A0(xOutIdx+1, yOutIdx+1, 0);
-    currZ = A0(xOutIdx+1, yOutIdx+1, 1);
-    nextZ = A0(xOutIdx+1, yOutIdx+1, 2);
+  if (xOutIdx<nx-1 && yOutIdx<ny-1){
+    lastZ = A0(xOutIdx, yOutIdx, 0);
+    currZ = A0(xOutIdx, yOutIdx, 1);
+    nextZ = A0(xOutIdx, yOutIdx, 2);
   }
   for (int zIdx = 1; zIdx < nz-1; zIdx++){
-    if (xOutIdx<nx-2 && yOutIdx<ny-2){
-      shdmem(threadIdx.x, threadIdx.y) = A0(xOutIdx+1, yOutIdx+1, zIdx);
+    if (xOutIdx<nx-1 && yOutIdx<ny-1){
+      shdmem(threadIdx.x, threadIdx.y) = A0(xOutIdx, yOutIdx, zIdx);
     }
     __syncthreads();
-    if (xOutIdx<nx-2 && yOutIdx<ny-2){
+    if (xOutIdx<nx-1 && yOutIdx<ny-1){
     int out_val=0;
-    out_val += (lastZ+currZ+nextZ+
-		(threadIdx.x==0?A0(xOutIdx, yOutIdx+1, zIdx):shdmem(threadIdx.x-1, threadIdx.y))+(threadIdx.x==(blockDim.x-1)?A0(xOutIdx+2,yOutIdx+1,zIdx):shdmem(threadIdx.x+1, threadIdx.y))+
-		(threadIdx.y==0?A0(xOutIdx+1, yOutIdx, zIdx):shdmem(threadIdx.x, threadIdx.y-1))+(threadIdx.y==(blockDim.y-1)?A0(xOutIdx+1,yOutIdx+2,zIdx):shdmem(threadIdx.x, threadIdx.y+1)));
+    out_val += (lastZ+nextZ+
+		(threadIdx.x==0?A0(xOutIdx-1, yOutIdx, zIdx):shdmem(threadIdx.x-1, threadIdx.y))+((threadIdx.x==(blockDim.x-1)||xOutIdx==(nx-2))?A0(xOutIdx+1,yOutIdx,zIdx):shdmem(threadIdx.x+1, threadIdx.y))+
+		(threadIdx.y==0?A0(xOutIdx, yOutIdx-1, zIdx):shdmem(threadIdx.x, threadIdx.y-1))+((threadIdx.y==(blockDim.y-1)||yOutIdx==(ny-2))?A0(xOutIdx,yOutIdx+1,zIdx):shdmem(threadIdx.x, threadIdx.y+1)))-6*currZ;
 
 
-    Anext(xOutIdx, yOutIdx, zIdx-1) = out_val;
+    Anext(xOutIdx, yOutIdx, zIdx) = out_val;
     
         lastZ = currZ;
 	      currZ = nextZ;
