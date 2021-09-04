@@ -2,6 +2,12 @@
 
 __global__ void s2g_gpu_scatter_kernel(uint32_t *in, uint32_t *out, int len) {
   //@@ INSERT KERNEL CODE HERE
+  int inIdx = blockDim.x * blockIdx.x + threadIdx.x;
+  if (inIdx < len) {
+    for (int outIdx = 0; outIdx < len; outIdx++) {
+      atomicAdd(&out[outIdx],outDependent(outInvariant(in[inIdx]), inIdx, outIdx));
+    }
+  }
 }
 
 static void s2g_cpu_scatter(uint32_t *in, uint32_t *out, int len) {
@@ -16,6 +22,8 @@ static void s2g_cpu_scatter(uint32_t *in, uint32_t *out, int len) {
 
 static void s2g_gpu_scatter(uint32_t *in, uint32_t *out, int len) {
   //@@ INSERT CODE HERE
+  cudaMemset(out, 0, len * sizeof(uint32_t));
+  s2g_gpu_scatter_kernel<<<(len+1023)/1024, 1024>>>(in, out, len);
 }
 
 static int eval(int inputLength) {

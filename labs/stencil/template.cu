@@ -3,19 +3,53 @@
 
 #include "helper.hpp"
 
-#define TILE_SIZE 30
+//#define TILE_SIZE 30
 
 __global__ void kernel(int *A0, int *Anext, int nx, int ny, int nz) {
-
+  __shared__ shdmem[32*32];
   // INSERT KERNEL CODE HERE
-  
+  #define A0(i, j, k) A0[((k)*ny + (j))*nx + (i)]
+  #define Anext(i, j, k) Anext[((k)*(ny-2) + (j))*(nx-2) + (i)]
+  #define shdmem(i, j) shdmem[((j))*nx + (i)]	
+  int xOutIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  int yOutIdx = blockIdx.y * blockDim.y + threadIdx.y;
+  //int xInIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  //int yInIdx = blockIdx.y * blockDim.y + threadIdx.y;
+  int currZ;
+  int nextZ;
+  int lastZ;
+  if (xInIdx<nx && yInIdx<ny){
+    lastZ = A0(xOutIdx+1, yOutIdx+1, 0);
+    currZ = A0(xOutIdx+1, yOutIdx+1, 1);
+    nextZ = A0(xOutIdx+1, yOutIdx+1, 2);
+  }
+  for (int zIdx = 1; zIdx < nz-1; zIdx++){
+    if (xOutIdx<nx-2 && yOutIdx<ny-2){
+      shdmem(threadIdx.x, threadIdx.y) = A0(xOutIdx+1, yOutIdx+1, zIdx);
+    }
+    __syncthreads();
+    int out_val;
+    out_val += (lastZ+currZ+nextZ+
+		(threadIdx.x==0?A0(xOutIdx, yOutIdx+1, zIdx):shdmem(threadIdx.x-1, threadIdx.y))+(threadIdx.x==(blockDim.x-1)?A0(xOutIdx+2,yOutIdx+1,zIdx):shdmem(threadIdx.x+1, threadIdx.y))+
+		(threadIdx.y==0?A0(xOutIdx+1, yOutIdx, zIdx):shdmem(threadIdx.x, threadIdx.y-1))+(threadIdx.y==(blockDim.y-1)?A0(xOutIdx+1,yOutIdx+2,zIdx):shdmem(threadIdx.x, threadIdx.y+1)));
 
+
+    Anext(xOutIdx, yOutIdx, zIdx-1) = out_val;
+    if (xInIdx<nx && yInIdx<ny){
+        lastZ = currZ;
+	currZ = nextZ;
+	nextZ=A0(xInIdx, yInIdx, zIdx+1);
+    }
+    __syncthreads();
+  }
 }
 
 void launchStencil(int* A0, int* Anext, int nx, int ny, int nz) {
 
   // INSERT CODE HERE
-
+  dim3 blocks(/*nx*/ (nx-2+31)/32, /*ny*/ (ny-2+31)/32);
+  dim3 threadsPerBlock(32, 32);
+  kernel<<<blocks, threadsPerBlock>>>(A0, Anext, nx, ny, nz);
 }
 
 
