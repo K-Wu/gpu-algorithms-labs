@@ -6,7 +6,7 @@
 //#define TILE_SIZE 30
 
 __global__ void kernel(int *A0, int *Anext, int nx, int ny, int nz) {
-  __shared__ shdmem[32*32];
+  __shared__ int shdmem[32*32];
   // INSERT KERNEL CODE HERE
   #define A0(i, j, k) A0[((k)*ny + (j))*nx + (i)]
   #define Anext(i, j, k) Anext[((k)*(ny-2) + (j))*(nx-2) + (i)]
@@ -18,7 +18,7 @@ __global__ void kernel(int *A0, int *Anext, int nx, int ny, int nz) {
   int currZ;
   int nextZ;
   int lastZ;
-  if (xInIdx<nx && yInIdx<ny){
+  if (xOutIdx<nx-2 && yOutIdx<ny-2){
     lastZ = A0(xOutIdx+1, yOutIdx+1, 0);
     currZ = A0(xOutIdx+1, yOutIdx+1, 1);
     nextZ = A0(xOutIdx+1, yOutIdx+1, 2);
@@ -28,18 +28,21 @@ __global__ void kernel(int *A0, int *Anext, int nx, int ny, int nz) {
       shdmem(threadIdx.x, threadIdx.y) = A0(xOutIdx+1, yOutIdx+1, zIdx);
     }
     __syncthreads();
-    int out_val;
+    if (xOutIdx<nx-2 && yOutIdx<ny-2){
+    int out_val=0;
     out_val += (lastZ+currZ+nextZ+
 		(threadIdx.x==0?A0(xOutIdx, yOutIdx+1, zIdx):shdmem(threadIdx.x-1, threadIdx.y))+(threadIdx.x==(blockDim.x-1)?A0(xOutIdx+2,yOutIdx+1,zIdx):shdmem(threadIdx.x+1, threadIdx.y))+
 		(threadIdx.y==0?A0(xOutIdx+1, yOutIdx, zIdx):shdmem(threadIdx.x, threadIdx.y-1))+(threadIdx.y==(blockDim.y-1)?A0(xOutIdx+1,yOutIdx+2,zIdx):shdmem(threadIdx.x, threadIdx.y+1)));
 
 
     Anext(xOutIdx, yOutIdx, zIdx-1) = out_val;
-    if (xInIdx<nx && yInIdx<ny){
+    
         lastZ = currZ;
-	currZ = nextZ;
-	nextZ=A0(xInIdx, yInIdx, zIdx+1);
+	      currZ = nextZ;
+    if (zIdx<nz-2)
+	      	      nextZ=A0(xOutIdx, yOutIdx, zIdx+2);
     }
+
     __syncthreads();
   }
 }
