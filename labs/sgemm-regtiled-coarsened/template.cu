@@ -76,6 +76,11 @@ __global__ void mysgemm(int m, int n, int k, const float *A, const float *B, flo
     __syncthreads();
   }
 
+  // SSL Hint (9/6/21): try using just one register for the tile of A 
+  // rather than several--in other words, load one value (per thread) 
+  // from A and compute using that value rather than loading all values 
+  // before doing the computation.  This approach seems to be slightly 
+  // faster than the alternative.
 }
 
 void basicSgemm(char transa, char transb, int m, int n, int k, float alpha, const float *A, int lda, const float *B, int ldb, float beta, float *C, int ldc)
@@ -103,6 +108,11 @@ void basicSgemm(char transa, char transb, int m, int n, int k, float alpha, cons
     // Initialize thread block and kernel grid dimensions ---------------------
     dim3 blocks((m+TILE_SZ_A-1)/TILE_SZ_A, (n+TILE_SZ_B-1)/TILE_SZ_B);
     dim3 threadsPerBlock(TILE_SZ_A);
+
+    // Your code need only consider the m, n, k, A, B, and C parameters of
+    // the function, which provide the matrix sizes (m, n, k) and data
+    // (A, B, C).
+
     //INSERT CODE HERE
     cudaMemset(C, 0, m*n*sizeof(float));
     // Invoke CUDA kernel -----------------------------------------------------
