@@ -71,7 +71,7 @@ __global__ void mysgemm_left_reg_right_shmem(int m, int n, int k, const float *A
 #define TILE_SZ_A_RIGHT_REG 16
 #define TILE_SZ_RATIO_RIGHT_REG (TILE_SZ_B_RIGHT_REG / TILE_SZ_A_RIGHT_REG)
 // left shmem right reg
-__global__ void mysgemm(int m, int n, int k, const float *A, const float *B, float *C) {
+__global__ void mysgemm_left_shmem_right_reg(int m, int n, int k, const float *A, const float *B, float *C) {
 
 /********************************************************************
  *
@@ -124,6 +124,7 @@ __global__ void mysgemm(int m, int n, int k, const float *A, const float *B, flo
         int CrowIdx = shdmemRowIdx + blockIdx.y * TILE_SZ_A_RIGHT_REG;
         if (CrowIdx < m) {
           for (int j = 0; j < TILE_SZ_RATIO_RIGHT_REG; j++) {
+            // TODO: use register array to store the accumulation results. THe size should be TILE_SZ_A_RIGHT_REG
             C(CrowIdx, BcolIdx) += shmem[shdmemRowIdx][j] * reg[j];
           }
         }
@@ -283,7 +284,7 @@ void basicSgemm(char transa, char transb, int m, int n, int k, float alpha, cons
       // gridDim y = (m+TILE_SZ_A-1)/TILE_SZ_A, gridDim x = (n+TILE_SZ_B-1)/TILE_SZ_B
       dim3 blocks((n + TILE_SZ_B_RIGHT_REG - 1) / TILE_SZ_B_RIGHT_REG, (m + TILE_SZ_A_RIGHT_REG - 1) / TILE_SZ_A_RIGHT_REG);
       dim3 threadsPerBlock(TILE_SZ_B_RIGHT_REG);
-      mysgemm<<<blocks, threadsPerBlock>>>(m, n, k, A, B, C);
+      mysgemm_left_shmem_right_reg<<<blocks, threadsPerBlock>>>(m, n, k, A, B, C);
     }
   }
   // INSERT CODE HERE
